@@ -54,7 +54,7 @@ void open_output(AVFormatContext **out_fmt_ctx, AVCodecContext **dec_ctx, AVCode
     if (success)
     {
         (*enc_ctx)->time_base = (AVRational){1,30};
-        (*enc_ctx)->bit_rate = in_stream->codecpar->bit_rate;
+        (*enc_ctx)->bit_rate = 4000000;
         (*enc_ctx)->framerate = (AVRational){30,1};
         (*enc_ctx)->gop_size = 12;
         (*enc_ctx)->pix_fmt = AV_PIX_FMT_YUV420P;

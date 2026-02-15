@@ -1,8 +1,14 @@
 #include "frame_producer.h"
 #include "fifo.h"
 #include "save_video.h"
+//SWS_PARAM_DEFAULT
+static bool check_codec_rcv_rc(int rc)
+{
+    return AVERROR(EAGAIN) == rc || 0 == rc;
+}
 
 void *produce_frames(void *fifo) {
+    av_log_set_level(AV_LOG_DEBUG);
     int *ret = malloc(sizeof(int));
     const int src_w = 800;
     const int src_h = 480;
@@ -93,31 +99,58 @@ void *produce_frames(void *fifo) {
                 if (IDLE == fifo_recorder_state(fifo) && CLIENT_REC == fifo_client_state(fifo))
                 {
                     fifo_recorder_state_set(fifo, INV);
-                    open_output(&out_fmt_ctx, &enc_ctx, &dec_ctx, ctx->streams[pkt->stream_index]);
+                    open_output(ctx, &out_fmt_ctx, &dec_ctx, &enc_ctx, ctx->streams[pkt->stream_index]);
                     if (NULL != out_fmt_ctx)
                     {
-                        printf("pkt info %p %"PRIi64", pix_fmt: %d\n", pkt, pkt->pts, ctx->streams[pkt->stream_index]->codecpar->format);
-                        rc = avcodec_send_packet(dec_ctx, pkt);
-                        utl_assert_continue_local(0 == rc);
-                        while ((rc = avcodec_receive_frame(dec_ctx, dec_frame)) == 0)
-                        {
-                            avcodec_send_frame(enc_ctx, dec_frame);
-                            while ((rc = avcodec_receive_packet(enc_ctx, enc_pkt)) == 0)
-                            {
-                                printf("av_interleaved_write_frame pkt.pts %"PRIi64"\n", pkt->pts);
-                                av_interleaved_write_frame(out_fmt_ctx, enc_pkt);
-                                av_packet_unref(enc_pkt);
-                            }
-                            av_frame_unref(dec_frame);
-                        }
-                        if (0 != rc) fprintf(stderr, "%s\n", av_err2str(rc));
                         fifo_recorder_state_set(fifo, REC);
                     }
-                    else
+                }
+                else if (REC == fifo_recorder_state(fifo) && CLIENT_REC == fifo_client_state(fifo) && NULL != out_fmt_ctx)
+                {
+                    if (pkt->pts == AV_NOPTS_VALUE || pkt->dts == AV_NOPTS_VALUE)
                     {
-                        fifo_recorder_state_set(fifo, INV);
-                        fprintf(stderr, "out_fmt_ctx was NULL\n");
+                        utl_assert_continue_local(false);
+                        continue;
+                    }
+                    pkt->dts -= ctx->streams[pkt->stream_index]->start_time;
+                    pkt->pts -= ctx->streams[pkt->stream_index]->start_time;
+
+                    rc = avcodec_send_packet(dec_ctx, pkt);
+                    if (rc != 0)
+                    {
+                        fprintf(stderr, "ERROR! avcodec_send_packet decoder %s\n", av_err2str(rc));
                         break;
+                    }
+                    while ((rc = avcodec_receive_frame(dec_ctx, dec_frame)) == 0)
+                    {
+                        dec_frame->pts = av_rescale_q(pkt->pts, ctx->streams[pkt->stream_index]->time_base, enc_ctx->time_base);
+                        rc = avcodec_send_frame(enc_ctx, dec_frame);
+                        if (rc != 0)
+                        {
+                            fprintf(stderr, "ERROR! avcodec_send_frame encoder %s\n", av_err2str(rc));
+                            break;
+                        }
+                        while ((rc = avcodec_receive_packet(enc_ctx, enc_pkt)) == 0)
+                        {
+                            enc_pkt->stream_index = pkt->stream_index;
+                            av_packet_rescale_ts(enc_pkt, enc_ctx->time_base, out_fmt_ctx->streams[pkt->stream_index]->time_base);
+                            printf("pts: %"PRIi64", dts: %"PRIi64", dur: %"PRIi64"\n", pkt->pts, pkt->dts, pkt->duration);
+                            rc = av_interleaved_write_frame(out_fmt_ctx, enc_pkt);
+                            if (0 != rc)
+                            {
+                                fprintf(stderr, "ERROR! av_interleaved_write_frame %s\n", av_err2str(rc));
+                            }
+                            av_packet_unref(enc_pkt);
+                        }
+                        av_frame_unref(dec_frame);
+                        if(!check_codec_rcv_rc(rc))
+                        {
+                            fprintf(stderr, "ERROR! avcodec_receive_packet %s\n", av_err2str(rc));
+                        }
+                    }
+                    if (!check_codec_rcv_rc(rc))
+                    {
+                        fprintf(stderr, "ERROR! avcodec_receive_frame %s\n", av_err2str(rc));
                     }
                 }
                 else if (REC == fifo_recorder_state(fifo) && CLIENT_STOP == fifo_client_state(fifo))

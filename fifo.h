@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include "sig_event.h"
 #include <stdatomic.h>
+#include <string.h>
 
 #define BUFFER_SIZE 16 // Use power of 2 for potential bitwise optimizations
 typedef enum {

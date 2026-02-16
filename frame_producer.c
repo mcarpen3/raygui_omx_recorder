@@ -26,6 +26,7 @@ void *produce_frames(void *fifo) {
     AVCodecContext *enc_ctx = NULL;
     AVPacket *pkt, *enc_pkt = NULL;
     AVFrame  *dec_frame;
+    bool exit = false;
 
     if (NULL == fifo) {
         fprintf(stderr, "fifo_buffer_t malloc failed\n");
@@ -79,8 +80,9 @@ void *produce_frames(void *fifo) {
     dec_frame = av_frame_alloc();
     
     struct SwsContext *sws = sws_getContext(src_w, src_h, src_fmt, dst_w, dst_h, dst_fmt, SWS_FAST_BILINEAR, NULL, NULL, NULL);
-    while (av_read_frame(ctx, pkt) == 0) 
+    while ((false == exit) && av_read_frame(ctx, pkt) == 0) 
     {
+        exit = fifo_client_state(fifo) == CLIENT_EXIT ? true : false;
         if (pkt->stream_index == 0) 
         {
             if (pkt->size == expected_pkt) 
@@ -185,5 +187,6 @@ void *produce_frames(void *fifo) {
     avformat_close_input(&ctx);
     avdevice_free_list_devices(&list);
     *ret = 0;
+    printf("frame_producer 188\n");
     return ret;
 }

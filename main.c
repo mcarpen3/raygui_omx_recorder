@@ -73,9 +73,11 @@ int main()
                 }
                 break;
             case CONTROL_CAMERA:
-                fifo_read(fifo, &frame_data);
-                UpdateTexture(cameraTex, frame_data);
-                DrawCameraControl(&cameraTex);
+                if (fifo_read(fifo, &frame_data))
+                {
+                    UpdateTexture(cameraTex, frame_data);
+                    DrawCameraControl(&cameraTex);
+                }
                 break;
             default:
                 break;
@@ -116,6 +118,7 @@ int main()
             //fifo_client_state_set(fifo, CLIENT_STOP);
         //}
     }
+    fifo_client_state_set(fifo, CLIENT_EXIT);
     CloseWindow();
     pthread_join(prod_thread, &prod_ret);
     printf("prod_thread returned with code %d\n", *(int *)prod_ret);

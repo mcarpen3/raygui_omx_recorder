@@ -32,7 +32,7 @@ typedef enum {
 // side bar of button controls
 bool SideControls(Rectangle bounds, bool isActive, int activeItem, ControlAction *act, ControlState state);
 
-Rectangle GetSideControlRec();
+Rectangle GetSideControlRec(bool active);
 Rectangle GetVidListControlRec(int sideControlWidth);
 void UpdateControlState(ControlAction *action, ControlState *state);
 Texture2D GetVideoImage(int frameBufSz, int width, int height, int pixFmt);

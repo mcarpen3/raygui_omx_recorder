@@ -5,11 +5,12 @@
 #include <string.h>
 
 #define BUFFER_SIZE 16 // Use power of 2 for potential bitwise optimizations
+
 typedef enum {
-    INV, IDLE, REC
+    INV, IDLE, REC, EXIT,
 } recorder_states;
 typedef enum {
-    CLIENT_IDLE, CLIENT_REC, CLIENT_STOP
+    CLIENT_IDLE, CLIENT_REC, CLIENT_STOP, CLIENT_EXIT,
 } client_states;
 
 typedef struct {
@@ -74,7 +75,7 @@ void fifo_init(fifo_buffer_t **f, size_t sz_one_buff) {
  * Empty occurs when head and tail pointers are equal.
  */
 bool fifo_is_empty(fifo_buffer_t *f) {
-    return f->head == f->tail;
+    return f->tail == f->head;
 }
 
 /**
@@ -94,13 +95,15 @@ bool fifo_write(fifo_buffer_t *f, uint8_t *data) {
     bool rc = true;
     pthread_mutex_lock(&f->lock); 
     if (fifo_is_full(f)) {
-        rc = false;
-        goto fifo_write_end; // Handle error: buffer is full
+        // rc = false;
+        // [. . . H T . . .] // overwrite
+        f->tail = (f->tail + 1) % BUFFER_SIZE;
+        // goto fifo_write_end; // Handle error: buffer is full
     }
     f->buffer_ptrs[f->head] = memcpy((uint8_t *)f->buffer_ptrs[f->head], data, f->sz_one);
     f->head = (f->head + 1) % BUFFER_SIZE; // Wrap around
     sig_event_trigger(f->signal);
-fifo_write_end:
+// fifo_write_end:
     pthread_mutex_unlock(&f->lock);
     return rc;
 }

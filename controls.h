@@ -13,10 +13,13 @@
 // button action types
 typedef enum {
     NONE,
+    // video list actions
     PLAY,
     DELETE,
+    // change state actions
     CAMERA,
     FILES,
+    // camera control actions
     CAMERA_REC,
     CAMERA_STOP,
 } ControlAction;

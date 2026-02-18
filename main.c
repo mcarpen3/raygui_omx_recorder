@@ -26,7 +26,8 @@ int main()
     ControlState controlState;
     bool controlsActive, mp4sLoaded, prevCtrlsActive;
     Vector2 dragVector;
-    //recorder_states recorder_state;
+    recorder_states recorder_state;
+    client_states client_state;
 
     // Initialize vars
     fifo_init(&fifo, FRAME_BUF_SZ);
@@ -44,6 +45,8 @@ int main()
     controlAction = NONE;
     controlsActive = true;
     mp4sLoaded = false;
+    recorder_state = INV;
+    client_state = fifo_client_state(fifo);
 
     InitWindow(800, 480, "raygui-control");
     GuiLoadStyle("../raygui/styles/cyber/cyber.rgs");
@@ -58,16 +61,11 @@ int main()
         BeginDrawing();
 
         ClearBackground(GetColor(GuiGetStyle(DEFAULT, BACKGROUND_COLOR)));
+
         switch(controlState)
         {
             case CONTROL_FILES:
-                if (!mp4sLoaded)
-                {
-                    mp4s = GetMp4s(&mp4Count);
-                    printf("GET MP4S LEN: %d\n", mp4Count);
-                    mp4sLoaded = true;
-                }
-                else
+                if (mp4sLoaded)
                 {
                     activeItem = GuiListViewExSwipe(listRec, (const char **)mp4s, mp4Count, NULL, &scrollIndex, activeItem, &dragVector);
                 }
@@ -88,8 +86,14 @@ int main()
 
         EndDrawing();
 
+        // Update the state
         ControlState prevState = controlState;
+        ControlAction lastAction = controlAction;
         UpdateControlState(&controlAction, &controlState);
+        recorder_state = fifo_recorder_state(fifo);
+        client_state = fifo_client_state(fifo);
+        
+        // Do controls hidden tasks
         if (prevCtrlsActive != controlsActive)
         {
             switch(controlState)
@@ -98,25 +102,50 @@ int main()
                     sideCtrlRec = GetSideControlRec(controlsActive);
                     listRec = GetVidListControlRec(sideCtrlRec.width);
                     break;
+                case CONTROL_CAMERA:
                 default:
                     break;
             }
         }
 
+        // Do new state tasks
         if (prevState != controlState)
         {
-            // Do new state tasks
-            mp4sLoaded = false;
+            switch(controlState)
+            {
+                case CONTROL_FILES:
+                    mp4sLoaded = false;
+                    mp4s = GetMp4s(&mp4Count);
+                    mp4sLoaded = true;
+                    break;
+                default:
+                    break;
+            }
+        };
+
+        // Do current state tasks
+        switch(controlState)
+        {
+            case CONTROL_CAMERA:
+            {
+                bool cliRec = client_state == CLIENT_REC;
+                bool recIdle = recorder_state == IDLE;
+                bool cliStop = client_state == CLIENT_STOP;
+                bool recRec = recorder_state == REC;
+
+                if (lastAction == CAMERA_REC && !(cliRec) && recIdle)
+                {
+                    fifo_client_state_set(fifo, CLIENT_REC);
+                }
+                else if (lastAction == CAMERA_STOP && !(cliStop) && recRec)
+                {
+                    fifo_client_state_set(fifo, CLIENT_STOP);
+                }
+            }
+            break;
+            default:
+            break;
         }
-        //recorder_state = fifo_recorder_state(fifo); 
-        //if (CLIENT_REC != fifo_client_state(fifo) && IDLE == recorder_state)
-        //{
-            //fifo_client_state_set(fifo, CLIENT_REC);
-        //}
-        //else if (CLIENT_STOP != fifo_client_state(fifo) && REC == recorder_state)
-        //{
-            //fifo_client_state_set(fifo, CLIENT_STOP);
-        //}
     }
     fifo_client_state_set(fifo, CLIENT_EXIT);
     CloseWindow();

@@ -21,16 +21,16 @@ void UpdateControlState(ControlAction *action, ControlState *state)
 {
     switch(*action)
     {
-        case PLAY:
-            break;
-        case DELETE:
-            break;
         case CAMERA:
             *state = CONTROL_CAMERA;
             break;
         case FILES:
             *state = CONTROL_FILES;
             break;
+        case PLAY:
+        case DELETE:
+        case CAMERA_REC:
+        case CAMERA_STOP:
         case NONE:
         default:
             break;

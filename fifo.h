@@ -10,7 +10,7 @@ typedef enum {
     INV, IDLE, REC, EXIT,
 } recorder_states;
 typedef enum {
-    CLIENT_IDLE, CLIENT_REC, CLIENT_STOP, CLIENT_EXIT,
+    CLIENT_INV, CLIENT_IDLE, CLIENT_REC, CLIENT_STOP, CLIENT_EXIT,
 } client_states;
 
 typedef struct {

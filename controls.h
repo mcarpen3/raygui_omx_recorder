@@ -27,13 +27,15 @@ typedef enum {
 typedef enum {
     CONTROL_CAMERA,
     CONTROL_FILES,
+    CONTROL_PLAYER,
+    CONTROL_DELETE,
 } ControlState;
 
 // list of video files
 //int GuiListViewExSwipe(Rectangle bounds, const char **text, int count, int *focus, int *scrollIndex, int active, Vector2 *lastDragVector);
 
 // side bar of button controls
-bool SideControls(Rectangle bounds, bool isActive, int activeItem, ControlAction *act, ControlState state);
+bool SideControls(Rectangle bounds, int activeItem, ControlAction *act, ControlState state, bool recording);
 
 Rectangle GetSideControlRec(bool active);
 Rectangle GetVidListControlRec(int sideControlWidth);

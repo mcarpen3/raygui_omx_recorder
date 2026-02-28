@@ -11,7 +11,6 @@
 #define IN_IMG_H 480
 #define FRAME_BUF_SZ (IN_IMG_W * IN_IMG_H * 4)
 
-
 int main()
 {
     // Main globals vars
@@ -19,12 +18,15 @@ int main()
     uint8_t *frame_data;
     char **mp4s = NULL;
     int mp4Count, activeItem, scrollIndex;
+    float iconRecordRadius;
+    Vector2 screenVec2;
+    Vector2 iconRecordVec2;
     pthread_t prod_thread;
     ControlAction controlAction;
     fifo_buffer_t *fifo;
     Rectangle sideCtrlRec, listRec;
     ControlState controlState;
-    bool controlsActive, mp4sLoaded, prevCtrlsActive;
+    bool controlsActive, mp4sLoaded, prevCtrlsActive, recording;
     Vector2 dragVector;
     recorder_states recorder_state;
     client_states client_state;
@@ -48,9 +50,14 @@ int main()
     recorder_state = INV;
     client_state = fifo_client_state(fifo);
 
+    
     InitWindow(800, 480, "raygui-control");
     GuiLoadStyle("../raygui/styles/cyber/cyber.rgs");
     GuiSetStyle(DEFAULT, TEXT_SIZE, 30);
+    SetTargetFPS(60);
+    screenVec2 = (Vector2){ .x = GetScreenWidth(), .y = GetScreenHeight() };
+    iconRecordRadius  = 16;
+    iconRecordVec2 = (Vector2){ screenVec2.x - iconRecordRadius * 2, iconRecordRadius * 2};
 
     Texture2D cameraTex = GetVideoImage(FRAME_BUF_SZ, IN_IMG_W, IN_IMG_H, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
     sideCtrlRec = GetSideControlRec(controlsActive);
@@ -71,10 +78,15 @@ int main()
                 }
                 break;
             case CONTROL_CAMERA:
+                
+                DrawCameraControl(&cameraTex);
                 if (fifo_read(fifo, &frame_data))
                 {
                     UpdateTexture(cameraTex, frame_data);
-                    DrawCameraControl(&cameraTex);
+                }
+                if (fifo_recorder_state(fifo) == REC)
+                {
+                    DrawCircleV(iconRecordVec2, iconRecordRadius, RED);
                 }
                 break;
             default:
@@ -82,7 +94,9 @@ int main()
         }
 
         prevCtrlsActive = controlsActive;
-        controlsActive = SideControls(sideCtrlRec, controlsActive, activeItem, &controlAction, controlState);
+        controlsActive = SideControls(sideCtrlRec, activeItem, &controlAction, controlState, recording);
+        
+        DrawFPS(screenVec2.x / 2, 4);
 
         EndDrawing();
 
@@ -92,14 +106,15 @@ int main()
         UpdateControlState(&controlAction, &controlState);
         recorder_state = fifo_recorder_state(fifo);
         client_state = fifo_client_state(fifo);
+        recording = client_state == CLIENT_REC;
         
         // Do controls hidden tasks
         if (prevCtrlsActive != controlsActive)
         {
+            sideCtrlRec = GetSideControlRec(controlsActive);
             switch(controlState)
             {
                 case CONTROL_FILES:
-                    sideCtrlRec = GetSideControlRec(controlsActive);
                     listRec = GetVidListControlRec(sideCtrlRec.width);
                     break;
                 case CONTROL_CAMERA:
@@ -155,5 +170,3 @@ int main()
     ClearDirectoryFiles();
     return 0;
 }
-
-

@@ -28,7 +28,11 @@ void UpdateControlState(ControlAction *action, ControlState *state)
             *state = CONTROL_FILES;
             break;
         case PLAY:
+            *state = CONTROL_PLAYER;
+            break;
         case DELETE:
+            *state = CONTROL_DELETE;
+            break;
         case CAMERA_REC:
         case CAMERA_STOP:
         case NONE:
@@ -68,13 +72,13 @@ void DrawCameraControl(Texture2D *cameraTex)
         WHITE);
 };
 
-bool SideControls(Rectangle bounds, bool isActive, int activeItem, ControlAction *act, ControlState state)
+bool SideControls(Rectangle bounds, int activeItem, ControlAction *act, ControlState state, bool recording)
 {
     bool curActive = false;
     int btnBorder = GuiGetStyle(BUTTON, BORDER_WIDTH);
     ControlAction action = NONE; 
     
-    if (!isActive)
+    if (bounds.width == 0)
     {
         Rectangle btnShow = (Rectangle){btnBorder, GetScreenHeight() - SM_BTN_H - btnBorder, SM_BTN_W, SM_BTN_H};
         curActive = GuiButton(btnShow, ">>") ? true : false;
@@ -112,20 +116,37 @@ bool SideControls(Rectangle bounds, bool isActive, int activeItem, ControlAction
         }
         else if (state == CONTROL_CAMERA)
         {
+            if (recording)
+            {
+                GuiDisable();
+            }
             if (GuiButton(btnIter, "#135#Record"))
             {
                 action = CAMERA_REC;
             }
+            GuiEnable();
+
             btnIter.y += MD_BTN_H + btnBorder;
+            if (!recording)
+            {
+                GuiDisable();
+            }
             if (GuiButton(btnIter, "#133#Stop"))
             {
                 action = CAMERA_STOP;
             }
+            GuiEnable();
+
             btnIter.y += MD_BTN_H + btnBorder;
+            if (recording)
+            {
+                GuiDisable();
+            }
             if (GuiButton(btnIter, "#3#Videos"))
             {
                 action = FILES;
             }
+            GuiEnable();
         }
     }
     *act = action;

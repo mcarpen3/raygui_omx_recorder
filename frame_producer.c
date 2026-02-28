@@ -8,7 +8,7 @@ static bool check_codec_rcv_rc(int rc)
 }
 
 void *produce_frames(void *fifo) {
-    av_log_set_level(AV_LOG_DEBUG);
+    av_log_set_level(AV_LOG_INFO); // libavutil/log.h
     int *ret = malloc(sizeof(int));
     const int src_w = 800;
     const int src_h = 480;
@@ -48,7 +48,6 @@ void *produce_frames(void *fifo) {
     }
 
     avdevice_register_all();
-    av_log_set_level(AV_LOG_DEBUG);
     AVInputFormat *fmt = av_find_input_format("v4l2");
     AVFormatContext *ctx = NULL; 
     AVDeviceInfoList *list = NULL;
@@ -136,7 +135,7 @@ void *produce_frames(void *fifo) {
                         {
                             enc_pkt->stream_index = pkt->stream_index;
                             av_packet_rescale_ts(enc_pkt, enc_ctx->time_base, out_fmt_ctx->streams[pkt->stream_index]->time_base);
-                            printf("pts: %"PRIi64", dts: %"PRIi64", dur: %"PRIi64"\n", pkt->pts, pkt->dts, pkt->duration);
+                            //printf("pts: %"PRIi64", dts: %"PRIi64", dur: %"PRIi64"\n", pkt->pts, pkt->dts, pkt->duration);
                             rc = av_interleaved_write_frame(out_fmt_ctx, enc_pkt);
                             if (0 != rc)
                             {

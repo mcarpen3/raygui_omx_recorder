@@ -148,6 +148,13 @@ bool SideControls(Rectangle bounds, int activeItem, ControlAction *act, ControlS
             }
             GuiEnable();
         }
+        else if (state == CONTROL_PLAYER)
+        {
+            if (GuiButton(btnIter, "#3#Videos"))
+            {
+                action = FILES;
+            }
+        }
     }
     *act = action;
     return curActive;

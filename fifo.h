@@ -7,13 +7,15 @@
 #define BUFFER_SIZE 16 // Use power of 2 for potential bitwise optimizations
 
 typedef enum {
-    INV, IDLE, REC, EXIT, PLAY
+    INV, IDLE, REC, EXIT, REC_PLAY
 } recorder_states;
+
 typedef enum {
     CLIENT_INV, CLIENT_IDLE, CLIENT_REC, CLIENT_STOP, CLIENT_EXIT, CLIENT_PLAY
 } client_states;
+
 typedef enum {
-    PLAYER_INV, PLAYER_PLAY, PLAYER_PAUSE, PLAYER_FF, PLAYER_RW
+    PLAYER_PLAY, PLAYER_PAUSE, PLAYER_REWIND, PLAYER_FASTFORWARD
 } player_states;
 
 typedef struct {
@@ -23,9 +25,12 @@ typedef struct {
     int head; // Write index
     int tail; // Read index
     sig_event_t *signal;
+    sig_event_t *player_filename_signal;
     pthread_mutex_t lock;
     atomic_int recorder_state;
     atomic_int client_state;
+    atomic_int player_state;
+    char *player_filename;
 } fifo_buffer_t;
 
 // Function Prototypes
@@ -36,10 +41,12 @@ bool fifo_write(fifo_buffer_t *f, uint8_t *data);
 bool fifo_read(fifo_buffer_t *f, uint8_t **data);
 recorder_states fifo_recorder_state(fifo_buffer_t *f);
 client_states fifo_client_state(fifo_buffer_t *f);
+player_states fifo_player_state(fifo_buffer_t *f);
 void fifo_recorder_state_set(fifo_buffer_t *f, recorder_states state);
 void fifo_client_state_set(fifo_buffer_t *f, client_states state);
-player_states fifo_player_state(fifo_buffer_t *f);
-void fifo_player_state_set(fifo_buffer_t *f);
+void fifo_player_state_set(fifo_buffer_t *f, player_states state);
+void fifo_player_set_filename(fifo_buffer_t *f, char *file_name);
+void fifo_player_get_filename(fifo_buffer_t *f, char **file_name);
 
 // Function Definitions
 #ifdef FIFO_IMPLEMENTATION
@@ -72,8 +79,13 @@ void fifo_init(fifo_buffer_t **f, size_t sz_one_buff) {
         pthread_mutex_init(&(*f)->lock, NULL);
         atomic_store_explicit(&(*f)->recorder_state, INV, memory_order_release);
         atomic_store_explicit(&(*f)->client_state, CLIENT_INV, memory_order_release);
-        atomic_store_explicit(&(*f)->player_state, PLAYER_INV, memory_order_release); 
     }
+    if (success)
+    {
+        sig_event_init(&(*f)->player_filename_signal);
+        success = (NULL != (*f)->player_filename_signal);
+    }
+    (*f)->player_filename = NULL;
 }
 
 /**
@@ -142,8 +154,14 @@ fifo_read_end:
 void fifo_destroy(fifo_buffer_t *f) {
     free(f->buffer);
     sig_event_destroy(f->signal);
+    sig_event_destroy(f->player_filename_signal);
     pthread_mutex_destroy(&f->lock);
     free(f->signal);
+    free(f->player_filename_signal);
+    if (f->player_filename)
+    {
+        free(f->player_filename);
+    }
     free(f);
     f = NULL;
 }
@@ -173,6 +191,20 @@ void fifo_player_state_set(fifo_buffer_t *f, player_states state)
     atomic_store_explicit(&f->player_state, state, memory_order_release);
 }
 
+void fifo_player_set_filename(fifo_buffer_t *f, char *file_name)
+{
+    if (f->player_filename)
+    {
+        free(f->player_filename);
+        f->player_filename = NULL;
+    }
+    f->player_filename = strdup(file_name);
+    sig_event_trigger(f->player_filename_signal);
+}
 
-
+void fifo_player_get_filename(fifo_buffer_t *f, char **file_name)
+{
+    sig_event_wait(f->player_filename_signal);
+    *file_name = strdup(f->player_filename);
+}
 #endif // FIFO_IMPLEMENTATION

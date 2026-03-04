@@ -17,6 +17,7 @@ int main()
     void *prod_ret;
     uint8_t *frame_data;
     char **mp4s = NULL;
+    char *player_filename;
     int mp4Count, activeItem, scrollIndex, iconRecordDur;
     float iconRecordRadius;
     double lastSeconds;
@@ -145,6 +146,12 @@ int main()
                     mp4s = GetMp4s(&mp4Count);
                     mp4sLoaded = true;
                     break;
+
+                case CONTROL_PLAYER:
+                    player_filename = mp4s[activeItem];
+                    fifo_player_set_filename(fifo, player_filename);
+                    break;
+
                 default:
                     break;
             }

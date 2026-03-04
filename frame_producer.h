@@ -14,5 +14,5 @@
 #include <libavutil/imgutils.h>
 #include <libavutil/avassert.h>
 
-#include "save_video.h"
+#include "video.h"
 void *produce_frames(void *fifo);

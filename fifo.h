@@ -7,11 +7,14 @@
 #define BUFFER_SIZE 16 // Use power of 2 for potential bitwise optimizations
 
 typedef enum {
-    INV, IDLE, REC, EXIT,
+    INV, IDLE, REC, EXIT, PLAY
 } recorder_states;
 typedef enum {
-    CLIENT_INV, CLIENT_IDLE, CLIENT_REC, CLIENT_STOP, CLIENT_EXIT,
+    CLIENT_INV, CLIENT_IDLE, CLIENT_REC, CLIENT_STOP, CLIENT_EXIT, CLIENT_PLAY
 } client_states;
+typedef enum {
+    PLAYER_INV, PLAYER_PLAY, PLAYER_PAUSE, PLAYER_FF, PLAYER_RW
+} player_states;
 
 typedef struct {
     uint8_t *buffer;
@@ -35,6 +38,8 @@ recorder_states fifo_recorder_state(fifo_buffer_t *f);
 client_states fifo_client_state(fifo_buffer_t *f);
 void fifo_recorder_state_set(fifo_buffer_t *f, recorder_states state);
 void fifo_client_state_set(fifo_buffer_t *f, client_states state);
+player_states fifo_player_state(fifo_buffer_t *f);
+void fifo_player_state_set(fifo_buffer_t *f);
 
 // Function Definitions
 #ifdef FIFO_IMPLEMENTATION
@@ -66,7 +71,8 @@ void fifo_init(fifo_buffer_t **f, size_t sz_one_buff) {
         success = (NULL != (*f)->signal);
         pthread_mutex_init(&(*f)->lock, NULL);
         atomic_store_explicit(&(*f)->recorder_state, INV, memory_order_release);
-        atomic_store_explicit(&(*f)->client_state, INV, memory_order_release);
+        atomic_store_explicit(&(*f)->client_state, CLIENT_INV, memory_order_release);
+        atomic_store_explicit(&(*f)->player_state, PLAYER_INV, memory_order_release); 
     }
 }
 
@@ -157,6 +163,14 @@ recorder_states fifo_recorder_state(fifo_buffer_t *f)
 void fifo_recorder_state_set(fifo_buffer_t *f, recorder_states state)
 {
     atomic_store_explicit(&f->recorder_state, state, memory_order_release);
+}
+player_states fifo_player_state(fifo_buffer_t *f)
+{
+    return atomic_load_explicit(&f->player_state, memory_order_acquire);
+}
+void fifo_player_state_set(fifo_buffer_t *f, player_states state)
+{
+    atomic_store_explicit(&f->player_state, state, memory_order_release);
 }
 
 

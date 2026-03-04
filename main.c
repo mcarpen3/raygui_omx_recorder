@@ -17,8 +17,9 @@ int main()
     void *prod_ret;
     uint8_t *frame_data;
     char **mp4s = NULL;
-    int mp4Count, activeItem, scrollIndex;
+    int mp4Count, activeItem, scrollIndex, iconRecordDur;
     float iconRecordRadius;
+    double lastSeconds;
     Vector2 screenVec2;
     Vector2 iconRecordVec2;
     pthread_t prod_thread;
@@ -26,7 +27,7 @@ int main()
     fifo_buffer_t *fifo;
     Rectangle sideCtrlRec, listRec;
     ControlState controlState;
-    bool controlsActive, mp4sLoaded, prevCtrlsActive, recording;
+    bool controlsActive, mp4sLoaded, prevCtrlsActive, recording, bRecordingIcon;
     Vector2 dragVector;
     recorder_states recorder_state;
     client_states client_state;
@@ -49,7 +50,8 @@ int main()
     mp4sLoaded = false;
     recorder_state = INV;
     client_state = fifo_client_state(fifo);
-
+    bRecordingIcon = true;
+    iconRecordDur = 2;
     
     InitWindow(800, 480, "raygui-control");
     GuiLoadStyle("../raygui/styles/cyber/cyber.rgs");
@@ -77,16 +79,26 @@ int main()
                     activeItem = GuiListViewExSwipe(listRec, (const char **)mp4s, mp4Count, NULL, &scrollIndex, activeItem, &dragVector);
                 }
                 break;
+            case CONTROL_PLAYER:
             case CONTROL_CAMERA:
-                
+
                 DrawCameraControl(&cameraTex);
                 if (fifo_read(fifo, &frame_data))
                 {
                     UpdateTexture(cameraTex, frame_data);
+
                 }
                 if (fifo_recorder_state(fifo) == REC)
                 {
-                    DrawCircleV(iconRecordVec2, iconRecordRadius, RED);
+                    if (bRecordingIcon)
+                    {
+                        DrawCircleV(iconRecordVec2, iconRecordRadius, RED);
+                    }
+                    if ((int)(GetTime() - lastSeconds) >= iconRecordDur)
+                    {
+                        bRecordingIcon = !bRecordingIcon;
+                        lastSeconds = GetTime(); 
+                    }
                 }
                 break;
             default:

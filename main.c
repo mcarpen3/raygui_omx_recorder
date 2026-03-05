@@ -16,6 +16,7 @@ int main()
     // Main globals vars
     void *prod_ret;
     uint8_t *frame_data;
+    char *output_vid_dir;
     char **mp4s = NULL;
     char *player_filename;
     int mp4Count, activeItem, scrollIndex, iconRecordDur;
@@ -53,7 +54,12 @@ int main()
     client_state = fifo_client_state(fifo);
     bRecordingIcon = true;
     iconRecordDur = 2;
-    
+#ifndef OUTPUT_VID_DIR
+    output_vid_dir = "OutputVideos";
+#else
+    output_vid_dir = OUTPUT_VID_DIR;
+#endif   
+
     InitWindow(800, 480, "raygui-control");
     GuiLoadStyle("../raygui/styles/cyber/cyber.rgs");
     GuiSetStyle(DEFAULT, TEXT_SIZE, 30);
@@ -143,14 +149,24 @@ int main()
             {
                 case CONTROL_FILES:
                     mp4sLoaded = false;
-                    mp4s = GetMp4s(&mp4Count);
+                    mp4s = GetMp4s(&mp4Count, output_vid_dir);
                     mp4sLoaded = true;
                     break;
 
                 case CONTROL_PLAYER:
+                {
+                    size_t output_vid_dir_len = strlen(output_vid_dir);
+                    size_t player_filename_len;
                     player_filename = mp4s[activeItem];
-                    fifo_player_set_filename(fifo, player_filename);
-                    break;
+                    player_filename_len = strlen(player_filename);
+                    int path_len = player_filename_len + output_vid_dir_len + 2;
+                    char * player_filename_path = malloc(path_len);
+                    snprintf(player_filename_path, path_len, "%s/%s", 
+                            output_vid_dir, player_filename);
+                    fifo_player_set_filename(fifo, player_filename_path);
+                    printf("player_filename_path = %s\n", player_filename_path);
+                    if (player_filename_path) free(player_filename_path);
+                } break;
 
                 default:
                     break;
@@ -177,6 +193,29 @@ int main()
                 }
             }
             break;
+            case CONTROL_PLAYER:
+            {
+                bool cliPlay = client_state == CLIENT_PLAY;
+                bool recIdle = recorder_state == IDLE;
+                
+                if (lastAction == PLAY && !(cliPlay) && recIdle)
+                {
+                    fifo_client_state_set(fifo, CLIENT_PLAY);
+                }
+            }
+            break;
+            case CONTROL_FILES:
+            {
+                bool cliIdle = client_state == CLIENT_IDLE;
+                bool recPlay = recorder_state == REC_PLAY;
+
+                if (lastAction == FILES && !(cliIdle) && recPlay)
+                {
+                    fifo_client_state_set(fifo, CLIENT_IDLE);
+                }
+            }
+            break;
+
             default:
             break;
         }

@@ -206,5 +206,6 @@ void fifo_player_get_filename(fifo_buffer_t *f, char **file_name)
 {
     sig_event_wait(f->player_filename_signal);
     *file_name = strdup(f->player_filename);
+    sig_event_reset(f->player_filename_signal);
 }
 #endif // FIFO_IMPLEMENTATION

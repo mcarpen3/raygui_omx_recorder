@@ -8,16 +8,11 @@ char *extname(char *filename)
     return dot + 1;
 }
 
-char **GetMp4s(int *count)
+char **GetMp4s(int *count, char *path)
 {
     int max_dir_files;
-    char *path;
     *count = 0;
-#ifndef OUTPUT_VID_DIR
-    path = "OutputVideos";
-#else
-    path = OUTPUT_VID_DIR;
-#endif
+
     char **videos = GetDirectoryFiles(path, &max_dir_files);
     char **mp4Files = NULL;
     for (int i = 0; i < max_dir_files; ++i)

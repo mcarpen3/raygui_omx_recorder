@@ -22,7 +22,7 @@ void *produce_frames(void *fifo) {
     const int chroma_size = uv_w * uv_h;
     int expected_pkt = luma_size + 2 * chroma_size;
     char *player_filename;
-    AVInputFormat *in_fmt;
+    AVInputFormat *in_fmt = NULL;
     AVDeviceInfoList *dev_list = NULL;
     AVFormatContext *ctx = NULL;
     AVFormatContext *in_fmt_ctx = NULL;
@@ -56,7 +56,6 @@ void *produce_frames(void *fifo) {
     avdevice_register_all();
 
     in_fmt = av_find_input_format("v4l2");
-    dev_list = NULL;
     nb_devs = avdevice_list_input_sources(in_fmt, NULL, NULL, &dev_list);
     (void)nb_devs;
     for (int i = 0; i < dev_list->nb_devices; ++i) {
@@ -75,21 +74,34 @@ void *produce_frames(void *fifo) {
     printf("opening %s\n", dev_list->devices[0]->device_name);
     
     avformat_open_input(&in_fmt_ctx, dev_list->devices[0]->device_name, in_fmt, &opts);
-    rc = avformat_find_stream_info(ctx, NULL);
+    rc = avformat_find_stream_info(in_fmt_ctx, NULL);
     if (rc != 0) { fprintf(stderr, "ERROR avformat_find_stream_info %d\n", rc); *ret = 1; return ret; }
-    av_dump_format(ctx, 0, dev_list->devices[0]->device_name, 0);
+    av_dump_format(in_fmt_ctx, 0, dev_list->devices[0]->device_name, 0);
     av_dict_free(&opts);
     pkt = av_packet_alloc();
     enc_pkt = av_packet_alloc();
     dec_frame = av_frame_alloc();
+    /**
+      * ctx is an AVFormatContext pointer toggled between pointing at the live camera device or a video playback file
+      * depending on the client's mode
+     **/
     ctx = in_fmt_ctx;
     
     struct SwsContext *sws = sws_getContext(src_w, src_h, src_fmt, dst_w, dst_h, dst_fmt, SWS_FAST_BILINEAR, NULL, NULL, NULL);
-    while (CLIENT_EXIT != fifo_client_state(fifo) && av_read_frame(ctx, pkt) == 0) 
+    while (CLIENT_EXIT != fifo_client_state(fifo)) 
     {
+        rc = av_read_frame(ctx, pkt);
+        if (rc != 0 && fifo_recorder_state(fifo) == REC_PLAY)
+        {
+            av_packet_unref(pkt);
+            rc = av_seek_frame(player_in_fmt_ctx, 0, 0, AVSEEK_FLAG_BACKWARD);
+            avcodec_flush_buffers(player_dec_ctx);
+            rc = av_read_frame(ctx, pkt);
+        }
         if (pkt->stream_index == 0) 
         {
-            if (pkt->size == expected_pkt) 
+            //if (pkt->size == expected_pkt) 
+            if (pkt->size > 0)
             {
                 if (INV == fifo_recorder_state(fifo))
                 {
@@ -105,9 +117,9 @@ void *produce_frames(void *fifo) {
                         fprintf(stderr, "ERROR! avcodec_send_packet player decoder %s\n", av_err2str(rc));
                         break;
                     }
-                    while ((rc == avcodec_receive_frame(player_dec_ctx, dec_frame)) == 0)
+                    while ((rc = avcodec_receive_frame(player_dec_ctx, dec_frame)) == 0)
                     {
-                        const uint8_t *src_slices[4] = { pkt->data, pkt->data + luma_size, pkt->data + luma_size + chroma_size, NULL };
+                        const uint8_t *src_slices[4] = { dec_frame->data[0], dec_frame->data[0] + luma_size, dec_frame->data[0] + luma_size + chroma_size, NULL };
                         int src_strides[4] = {src_w, uv_w, uv_w, 0};
                         rc = sws_scale(sws, src_slices, src_strides, 0, src_h, dst_data, dst_linesize);
                         if ((fifo_write((fifo_buffer_t *)fifo, dst_data[0])) == false)
@@ -115,6 +127,7 @@ void *produce_frames(void *fifo) {
                             fifo_recorder_state_set(fifo, INV);
                             break;
                         }
+                        av_frame_unref(dec_frame);
                     }
                 }
                 else
@@ -199,11 +212,13 @@ void *produce_frames(void *fifo) {
                     fifo_recorder_state_set(fifo, INV);
                     // Open the input context and codec for mp4 playback
                     fifo_player_get_filename(fifo, &player_filename);
+                    printf("player_filename = %s\n", player_filename);
                     if (player_filename == NULL)
                     {
                         break;
                     }
                     open_input_file(player_filename, &player_in_fmt_ctx, &player_dec_ctx);
+                    av_dump_format(player_in_fmt_ctx, 0, player_filename, 0);
                     if (NULL == player_in_fmt_ctx)
                     {
                         break;
@@ -211,16 +226,24 @@ void *produce_frames(void *fifo) {
                     ctx = player_in_fmt_ctx; // switch to reading file frames
                     fifo_recorder_state_set(fifo, REC_PLAY);
                 } 
-                else if (fifo_client_state(fifo) != CLIENT_PLAY && fifo_recorder_state(fifo) == REC_PLAY)
+                else if (fifo_client_state(fifo) == CLIENT_IDLE && fifo_recorder_state(fifo) == REC_PLAY)
                 {
                     fifo_recorder_state_set(fifo, INV);
-                    close_input_file(player_in_fmt_ctx, player_dec_ctx);
+                    close_input_file(&player_in_fmt_ctx, &player_dec_ctx);
+                    printf("input file %s closed %p %p\n", player_filename, player_in_fmt_ctx, player_dec_ctx);
                     ctx = in_fmt_ctx; // switch back to reading live frames
+                    free(player_filename);
+                    player_filename = NULL;
                     fifo_recorder_state_set(fifo, IDLE);
                 }
             }
         }
         av_packet_unref(pkt);
+    }
+
+    if (rc != 0)
+    {
+        fprintf(stderr, "ERROR %s\n", av_err2str(rc));
     }
 
     if (pkt) {

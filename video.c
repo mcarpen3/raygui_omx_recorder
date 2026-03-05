@@ -318,8 +318,10 @@ void open_input_file(const char *file_name, AVFormatContext **in_fmt_ctx, AVCode
     }
 }
 
-void close_input_file(AVFormatContext *in_fmt_ctx, AVCodecContext *dec_ctx)
+void close_input_file(AVFormatContext **in_fmt_ctx, AVCodecContext **dec_ctx)
 {
-    avformat_close_input(&in_fmt_ctx);
-    avcodec_free_context(&dec_ctx);
+    avformat_close_input(in_fmt_ctx);
+    *in_fmt_ctx = NULL;
+    avcodec_free_context(dec_ctx);
+    *dec_ctx = NULL;
 }

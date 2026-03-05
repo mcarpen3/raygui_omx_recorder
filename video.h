@@ -16,6 +16,6 @@ void close_output(AVFormatContext *out_fmt_ctx, AVCodecContext *dec_ctx, AVCodec
 
 void open_input_file(const char *file_name, AVFormatContext **in_fmt_ctx, AVCodecContext **dec_ctx);
 
-void close_input_file(AVFormatContext *in_fmt_ctx, AVCodecContext *dec_ctx);
+void close_input_file(AVFormatContext **in_fmt_ctx, AVCodecContext **dec_ctx);
 
 #endif // SAVE_VIDEO_H

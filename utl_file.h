@@ -4,5 +4,5 @@
 #include <stdlib.h>
 #include "raylib.h"
 char *extname(char *filename);
-char **GetMp4s(int *count);
+char **GetMp4s(int *count, char *path);
 #endif

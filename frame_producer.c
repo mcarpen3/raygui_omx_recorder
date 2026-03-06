@@ -22,6 +22,7 @@ void *produce_frames(void *fifo) {
     const int chroma_size = uv_w * uv_h;
     int expected_pkt = luma_size + 2 * chroma_size;
     char *player_filename;
+    int64_t player_start_us, player_elapsed_us, dec_frame_us;
     AVInputFormat *in_fmt = NULL;
     AVDeviceInfoList *dev_list = NULL;
     AVFormatContext *ctx = NULL;
@@ -83,7 +84,7 @@ void *produce_frames(void *fifo) {
     dec_frame = av_frame_alloc();
     /**
       * ctx is an AVFormatContext pointer toggled between pointing at the live camera device or a video playback file
-      * depending on the client's mode
+      * depending on the client's mode [live view / player view]
      **/
     ctx = in_fmt_ctx;
     
@@ -96,6 +97,7 @@ void *produce_frames(void *fifo) {
             av_packet_unref(pkt);
             rc = av_seek_frame(player_in_fmt_ctx, 0, 0, AVSEEK_FLAG_BACKWARD);
             avcodec_flush_buffers(player_dec_ctx);
+            player_start_us = av_gettime();
             rc = av_read_frame(ctx, pkt);
         }
         if (pkt->stream_index == 0) 
@@ -119,9 +121,16 @@ void *produce_frames(void *fifo) {
                     }
                     while ((rc = avcodec_receive_frame(player_dec_ctx, dec_frame)) == 0)
                     {
-                        const uint8_t *src_slices[4] = { dec_frame->data[0], dec_frame->data[0] + luma_size, dec_frame->data[0] + luma_size + chroma_size, NULL };
-                        int src_strides[4] = {src_w, uv_w, uv_w, 0};
-                        rc = sws_scale(sws, src_slices, src_strides, 0, src_h, dst_data, dst_linesize);
+                        rc = sws_scale(sws, (const uint8_t * const *)dec_frame->data, dec_frame->linesize, 0, dec_frame->height, dst_data, dst_linesize);
+
+                        player_elapsed_us = av_gettime() - player_start_us;
+                        dec_frame_us = av_rescale_q(dec_frame->pts, player_in_fmt_ctx->streams[0]->time_base, AV_TIME_BASE_Q);
+
+                        int64_t dt = dec_frame_us - player_elapsed_us;
+                        if (dt > 0)
+                        {
+                            av_usleep(dt);
+                        }
                         if ((fifo_write((fifo_buffer_t *)fifo, dst_data[0])) == false)
                         {
                             fifo_recorder_state_set(fifo, INV);
@@ -179,7 +188,7 @@ void *produce_frames(void *fifo) {
                         {
                             enc_pkt->stream_index = pkt->stream_index;
                             av_packet_rescale_ts(enc_pkt, enc_ctx->time_base, out_fmt_ctx->streams[pkt->stream_index]->time_base);
-                            //printf("pts: %"PRIi64", dts: %"PRIi64", dur: %"PRIi64"\n", pkt->pts, pkt->dts, pkt->duration);
+
                             rc = av_interleaved_write_frame(out_fmt_ctx, enc_pkt);
                             if (0 != rc)
                             {
@@ -225,6 +234,7 @@ void *produce_frames(void *fifo) {
                     }
                     ctx = player_in_fmt_ctx; // switch to reading file frames
                     fifo_recorder_state_set(fifo, REC_PLAY);
+                    player_start_us = av_gettime();
                 } 
                 else if (fifo_client_state(fifo) == CLIENT_IDLE && fifo_recorder_state(fifo) == REC_PLAY)
                 {
@@ -234,6 +244,7 @@ void *produce_frames(void *fifo) {
                     ctx = in_fmt_ctx; // switch back to reading live frames
                     free(player_filename);
                     player_filename = NULL;
+                    player_elapsed_us = 0;
                     fifo_recorder_state_set(fifo, IDLE);
                 }
             }

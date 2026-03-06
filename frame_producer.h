@@ -13,6 +13,7 @@
 #include <libavutil/opt.h>
 #include <libavutil/imgutils.h>
 #include <libavutil/avassert.h>
+#include <libavutil/time.h>
 
 #include "video.h"
 void *produce_frames(void *fifo);

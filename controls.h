@@ -22,6 +22,8 @@ typedef enum {
     // camera control actions
     CAMERA_REC,
     CAMERA_STOP,
+    DELETE_YES,
+    DELETE_NO,
 } ControlAction;
 
 typedef enum {

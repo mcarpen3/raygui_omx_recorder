@@ -24,6 +24,8 @@ void UpdateControlState(ControlAction *action, ControlState *state)
         case CAMERA:
             *state = CONTROL_CAMERA;
             break;
+        case DELETE_YES:
+        case DELETE_NO:
         case FILES:
             *state = CONTROL_FILES;
             break;
@@ -151,6 +153,18 @@ bool SideControls(Rectangle bounds, int activeItem, ControlAction *act, ControlS
         else if (state == CONTROL_PLAYER)
         {
             if (GuiButton(btnIter, "#3#Videos"))
+            {
+                action = FILES;
+            }
+        }
+        else if (state == CONTROL_DELETE)
+        {
+            if (GuiButton(btnIter, "#9#Delete"))
+            {
+                action = DELETE_YES;
+            }
+            btnIter.y += MD_BTN_H + btnBorder;
+            if (GuiButton(btnIter, "Cancel"))
             {
                 action = FILES;
             }

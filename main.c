@@ -108,6 +108,9 @@ int main()
                     }
                 }
                 break;
+            case CONTROL_DELETE:
+                DrawText("Delete video?", screenVec2.x / 2, screenVec2.y / 2, 24.0f, RED);
+                break;
             default:
                 break;
         }
@@ -155,14 +158,9 @@ int main()
 
                 case CONTROL_PLAYER:
                 {
-                    size_t output_vid_dir_len = strlen(output_vid_dir);
-                    size_t player_filename_len;
                     player_filename = mp4s[activeItem];
-                    player_filename_len = strlen(player_filename);
-                    int path_len = player_filename_len + output_vid_dir_len + 2;
-                    char * player_filename_path = malloc(path_len);
-                    snprintf(player_filename_path, path_len, "%s/%s", 
-                            output_vid_dir, player_filename);
+                    char *player_filename_path = make_message("%s/%s", output_vid_dir, player_filename);
+
                     fifo_player_set_filename(fifo, player_filename_path);
                     printf("player_filename_path = %s\n", player_filename_path);
                     if (player_filename_path) free(player_filename_path);
@@ -213,6 +211,16 @@ int main()
                 {
                     fifo_client_state_set(fifo, CLIENT_IDLE);
                 }
+                if (lastAction == DELETE_YES)
+                {
+                    printf("delete %s?\n", mp4s[activeItem]); 
+                }
+
+                
+            }
+            break;
+            case CONTROL_DELETE:
+            {
             }
             break;
 

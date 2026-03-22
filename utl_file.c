@@ -1,5 +1,7 @@
 #include "utl_file.h"
 
+
+static int sort_mp4s(const void *a, const void *b);
 char *extname(char *filename)
 {
     char *dot = strrchr(filename, '.');
@@ -24,6 +26,7 @@ char **GetMp4s(int *count, char *path)
             mp4Files[(*count) - 1] = videos[i];
         }
     }
+    qsort(mp4Files, (size_t)*count, sizeof(char *), sort_mp4s);
     return mp4Files;
 }
 
@@ -58,3 +61,10 @@ char *make_message(const char *fmt, ...)
 
    return p;
 }
+
+static int sort_mp4s(const void *a, const void *b)
+{
+    // sort in descending order
+    return -strcmp(* (char * const *) a, * (char * const *) b);
+}
+

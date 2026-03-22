@@ -93,6 +93,7 @@ void *produce_frames(void *fifo) {
     {
         if (fifo_recorder_state(fifo) == REC_PLAY && fifo_player_state(fifo) == PLAYER_PAUSE)
         {
+            // player state paused. keep moving the start time up to keep it in sync with the duration of the video
             player_start_us = av_gettime() - dec_frame_us;
             continue;
         }
@@ -100,7 +101,7 @@ void *produce_frames(void *fifo) {
         if (rc != 0 && fifo_recorder_state(fifo) == REC_PLAY)
         {
             printf("RESTARTING PLAYBACK STREAM! %s\n", av_err2str(rc));
-            // must be at end of file, default to resetting to 0
+            // player must be at end of file, default to resetting to start of video 
             av_packet_unref(pkt);
             rc = av_seek_frame(player_in_fmt_ctx, 0, 0, AVSEEK_FLAG_BACKWARD);
             avcodec_flush_buffers(player_dec_ctx);
@@ -119,7 +120,7 @@ void *produce_frames(void *fifo) {
 
                 if (REC_PLAY == fifo_recorder_state(fifo))
                 {
-                    // decode and rescale the packets
+                    // decode and rescale the video playback packets
                     rc = avcodec_send_packet(player_dec_ctx, pkt);
                     if (rc != 0)
                     {
@@ -136,6 +137,7 @@ void *produce_frames(void *fifo) {
                         int64_t dt = dec_frame_us - player_elapsed_us;
                         if (dt > 0)
                         {
+                            // produce frames at period matching wall clock
                             av_usleep(dt);
                         }
                         if ((fifo_write((fifo_buffer_t *)fifo, dst_data[0])) == false)
@@ -166,7 +168,7 @@ void *produce_frames(void *fifo) {
                         int64_t new_ts_stream = av_rescale_q(new_ts_us, AV_TIME_BASE_Q, stream_tb);
 
                         rc = av_seek_frame(player_in_fmt_ctx, 0, new_ts_stream, AVSEEK_FLAG_BACKWARD);
-                        player_start_us = av_gettime() + new_ts_us;
+                        player_start_us = av_gettime() - new_ts_us;
                         avcodec_flush_buffers(player_dec_ctx);
                         fifo_player_state_set(fifo, PLAYER_PLAY);
                     }

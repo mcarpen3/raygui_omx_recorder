@@ -91,9 +91,16 @@ void *produce_frames(void *fifo) {
     struct SwsContext *sws = sws_getContext(src_w, src_h, src_fmt, dst_w, dst_h, dst_fmt, SWS_FAST_BILINEAR, NULL, NULL, NULL);
     while (CLIENT_EXIT != fifo_client_state(fifo)) 
     {
+        if (fifo_recorder_state(fifo) == REC_PLAY && fifo_player_state(fifo) == PLAYER_PAUSE)
+        {
+            player_start_us = av_gettime() - dec_frame_us;
+            continue;
+        }
         rc = av_read_frame(ctx, pkt);
         if (rc != 0 && fifo_recorder_state(fifo) == REC_PLAY)
         {
+            printf("RESTARTING PLAYBACK STREAM! %s\n", av_err2str(rc));
+            // must be at end of file, default to resetting to 0
             av_packet_unref(pkt);
             rc = av_seek_frame(player_in_fmt_ctx, 0, 0, AVSEEK_FLAG_BACKWARD);
             avcodec_flush_buffers(player_dec_ctx);
@@ -137,6 +144,31 @@ void *produce_frames(void *fifo) {
                             break;
                         }
                         av_frame_unref(dec_frame);
+                    }
+                    if (fifo_player_state(fifo) == PLAYER_RW)
+                    {
+                        int64_t rw_dur = 15 * 1000000;
+                        int64_t new_ts = rw_dur > dec_frame_us ? 0 : (dec_frame_us - rw_dur);
+                        int64_t new_ts_scaled = av_rescale_q(new_ts, AV_TIME_BASE_Q, player_in_fmt_ctx->streams[0]->time_base);
+                        
+                        av_seek_frame(player_in_fmt_ctx, 0, new_ts_scaled, AVSEEK_FLAG_BACKWARD);
+                        player_start_us = av_gettime() - new_ts;
+                        avcodec_flush_buffers(player_dec_ctx);
+                        fifo_player_state_set(fifo, PLAYER_PLAY);
+                    }
+                    if (fifo_player_state(fifo) == PLAYER_FF)
+                    {
+                        int64_t ff_dur_us = 15 * 1000000;
+                        AVRational stream_tb = player_in_fmt_ctx->streams[0]->time_base;
+                        int64_t stream_start_us = av_rescale_q(player_in_fmt_ctx->streams[0]->start_time, stream_tb, AV_TIME_BASE_Q); 
+                        int64_t stream_dur_us = av_rescale_q(player_in_fmt_ctx->streams[0]->duration, stream_tb, AV_TIME_BASE_Q); 
+                        int64_t new_ts_us = stream_start_us + stream_dur_us < dec_frame_us + ff_dur_us ? 0 : dec_frame_us + ff_dur_us;
+                        int64_t new_ts_stream = av_rescale_q(new_ts_us, AV_TIME_BASE_Q, stream_tb);
+
+                        rc = av_seek_frame(player_in_fmt_ctx, 0, new_ts_stream, AVSEEK_FLAG_BACKWARD);
+                        player_start_us = av_gettime() + new_ts_us;
+                        avcodec_flush_buffers(player_dec_ctx);
+                        fifo_player_state_set(fifo, PLAYER_PLAY);
                     }
                 }
                 else

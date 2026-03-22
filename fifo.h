@@ -15,7 +15,7 @@ typedef enum {
 } client_states;
 
 typedef enum {
-    PLAYER_PLAY, PLAYER_PAUSE, PLAYER_REWIND, PLAYER_FASTFORWARD
+    PLAYER_INV, PLAYER_PLAY, PLAYER_PAUSE, PLAYER_RW, PLAYER_FF
 } player_states;
 
 typedef struct {
@@ -79,6 +79,7 @@ void fifo_init(fifo_buffer_t **f, size_t sz_one_buff) {
         pthread_mutex_init(&(*f)->lock, NULL);
         atomic_store_explicit(&(*f)->recorder_state, INV, memory_order_release);
         atomic_store_explicit(&(*f)->client_state, CLIENT_INV, memory_order_release);
+        atomic_store_explicit(&(*f)->player_state, PLAYER_INV, memory_order_release);
     }
     if (success)
     {
@@ -132,8 +133,10 @@ bool fifo_write(fifo_buffer_t *f, uint8_t *data) {
  */
 bool fifo_read(fifo_buffer_t *f, uint8_t **data) 
 {
-    bool rc = true;
-    sig_event_wait(f->signal);
+    bool rc = true, timed_out = false;
+    //sig_event_wait(f->signal);
+    timed_out = sig_event_wait_timeout(f->signal, 16);
+    if (timed_out) return false;
     pthread_mutex_lock(&f->lock);
     if (fifo_is_empty(f)) {
         sig_event_reset(f->signal);

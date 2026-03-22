@@ -74,7 +74,7 @@ void DrawCameraControl(Texture2D *cameraTex)
         WHITE);
 };
 
-bool SideControls(Rectangle bounds, int activeItem, ControlAction *act, ControlState state, bool recording)
+bool SideControls(Rectangle bounds, int activeItem, ControlAction *act, ControlState state, ControlSubState subState)
 {
     bool curActive = false;
     int btnBorder = GuiGetStyle(BUTTON, BORDER_WIDTH);
@@ -118,7 +118,7 @@ bool SideControls(Rectangle bounds, int activeItem, ControlAction *act, ControlS
         }
         else if (state == CONTROL_CAMERA)
         {
-            if (recording)
+            if (subState == CONTROL_CAMERA_REC)
             {
                 GuiDisable();
             }
@@ -129,7 +129,7 @@ bool SideControls(Rectangle bounds, int activeItem, ControlAction *act, ControlS
             GuiEnable();
 
             btnIter.y += MD_BTN_H + btnBorder;
-            if (!recording)
+            if (subState != CONTROL_CAMERA_REC)
             {
                 GuiDisable();
             }
@@ -140,7 +140,7 @@ bool SideControls(Rectangle bounds, int activeItem, ControlAction *act, ControlS
             GuiEnable();
 
             btnIter.y += MD_BTN_H + btnBorder;
-            if (recording)
+            if (subState == CONTROL_CAMERA_REC)
             {
                 GuiDisable();
             }
@@ -155,6 +155,35 @@ bool SideControls(Rectangle bounds, int activeItem, ControlAction *act, ControlS
             if (GuiButton(btnIter, "#3#Videos"))
             {
                 action = FILES;
+            }
+
+            btnIter.y += MD_BTN_H + btnBorder;
+            if (subState == CONTROL_PLAYER_PLAY)
+            {
+                if (GuiButton(btnIter, "#132#Pause"))
+                {
+                    action = PLAYER_PAUSE_ACT;
+                }
+                
+                btnIter.y += MD_BTN_H + btnBorder;
+                if (GuiButton(btnIter, "#118#Rew."))
+                {
+                    action = PLAYER_RW_ACT;
+                }
+                
+                btnIter.y += MD_BTN_H + btnBorder;
+                if (GuiButton(btnIter, "#119#FFwd."))
+                {
+                    action = PLAYER_FF_ACT;
+                }
+
+            } 
+            else if (subState == CONTROL_PLAYER_PAUSE)
+            {
+                if (GuiButton(btnIter, "#131#Play"))
+                {
+                    action = PLAYER_PLAY_ACT;
+                }
             }
         }
         else if (state == CONTROL_DELETE)

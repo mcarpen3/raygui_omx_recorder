@@ -89,7 +89,7 @@ void open_output(AVFormatContext *in_fmt_ctx, AVFormatContext **out_fmt_ctx, AVC
         //(*enc_ctx)->time_base = AV_TIME_BASE_Q; 
         (*enc_ctx)->pix_fmt = AV_PIX_FMT_YUV420P;
         (*enc_ctx)->framerate = (*dec_ctx)->framerate;
-        (*enc_ctx)->bit_rate = 200000;
+        (*enc_ctx)->bit_rate = 400000;
     }
     // setup the output context
     if (success)
@@ -267,12 +267,17 @@ void open_input_file(const char *file_name, AVFormatContext **in_fmt_ctx, AVCode
         stream = (*in_fmt_ctx)->streams[stream_index];
 
         /* find decoder for stream */
-        dec = avcodec_find_decoder(stream->codecpar->codec_id);
+        //dec = avcodec_find_decoder(stream->codecpar->codec_id);
+        dec = avcodec_find_decoder_by_name("h264_mmal");
         success = (NULL != dec);
         if (!success)
         {
             fprintf(stderr, "ERROR Failed to find %s codec\n",
                     av_get_media_type_string(media_type));
+        }
+        else
+        {
+            printf("INFO Found decoder %s, %s\n", dec->name, dec->long_name);
         }
     }
 

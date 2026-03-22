@@ -8,7 +8,7 @@
 #define SM_BTN_W  80
 #define MD_BTN_W 160
 #define SM_BTN_H (SM_BTN_W / PHI)
-#define MD_BTN_H (MD_BTN_W / PHI)
+#define MD_BTN_H (MD_BTN_W / 2)
 
 // button action types
 typedef enum {
@@ -22,8 +22,14 @@ typedef enum {
     // camera control actions
     CAMERA_REC,
     CAMERA_STOP,
+    // file list control actions
     DELETE_YES,
     DELETE_NO,
+    // player control actions
+    PLAYER_PLAY_ACT,
+    PLAYER_PAUSE_ACT,
+    PLAYER_FF_ACT,
+    PLAYER_RW_ACT,
 } ControlAction;
 
 typedef enum {
@@ -33,11 +39,20 @@ typedef enum {
     CONTROL_DELETE,
 } ControlState;
 
+typedef enum {
+    CONTROL_CAMERA_NONE,
+    CONTROL_CAMERA_REC,
+    CONTROL_CAMERA_IDLE,
+    CONTROL_PLAYER_PLAY,
+    CONTROL_PLAYER_PAUSE,
+} ControlSubState;
+
+
 // list of video files
 //int GuiListViewExSwipe(Rectangle bounds, const char **text, int count, int *focus, int *scrollIndex, int active, Vector2 *lastDragVector);
 
 // side bar of button controls
-bool SideControls(Rectangle bounds, int activeItem, ControlAction *act, ControlState state, bool recording);
+bool SideControls(Rectangle bounds, int activeItem, ControlAction *act, ControlState state, ControlSubState subState);
 
 Rectangle GetSideControlRec(bool active);
 Rectangle GetVidListControlRec(int sideControlWidth);

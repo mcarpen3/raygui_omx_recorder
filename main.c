@@ -19,7 +19,7 @@ int main()
     char *output_vid_dir;
     char **mp4s = NULL;
     char *player_filename;
-    int mp4Count, activeItem, scrollIndex, iconRecordDur;
+    int mp4Count, activeItem, scrollIndex, iconRecordDur, rc;
     float iconRecordRadius;
     double lastSeconds;
     Vector2 screenVec2;
@@ -29,10 +29,12 @@ int main()
     fifo_buffer_t *fifo;
     Rectangle sideCtrlRec, listRec;
     ControlState controlState;
-    bool controlsActive, mp4sLoaded, prevCtrlsActive, recording, bRecordingIcon;
+    ControlSubState controlSubState;
+    bool controlsActive, mp4sLoaded, prevCtrlsActive, bRecordingIcon;
     Vector2 dragVector;
     recorder_states recorder_state;
     client_states client_state;
+    player_states player_state;
 
     // Initialize vars
     fifo_init(&fifo, FRAME_BUF_SZ);
@@ -52,6 +54,8 @@ int main()
     mp4sLoaded = false;
     recorder_state = INV;
     client_state = fifo_client_state(fifo);
+    player_state = fifo_player_state(fifo);
+    controlSubState = CONTROL_CAMERA_NONE;
     bRecordingIcon = true;
     iconRecordDur = 2;
 #ifndef OUTPUT_VID_DIR
@@ -74,6 +78,10 @@ int main()
 
     while (!WindowShouldClose())
     {
+        recorder_state = fifo_recorder_state(fifo);
+        client_state = fifo_client_state(fifo);
+        player_state = fifo_player_state(fifo);
+
         BeginDrawing();
 
         ClearBackground(GetColor(GuiGetStyle(DEFAULT, BACKGROUND_COLOR)));
@@ -90,7 +98,7 @@ int main()
             case CONTROL_CAMERA:
 
                 DrawCameraControl(&cameraTex);
-                if (fifo_read(fifo, &frame_data))
+                if (player_state != PLAYER_PAUSE && fifo_read(fifo, &frame_data))
                 {
                     UpdateTexture(cameraTex, frame_data);
 
@@ -116,7 +124,7 @@ int main()
         }
 
         prevCtrlsActive = controlsActive;
-        controlsActive = SideControls(sideCtrlRec, activeItem, &controlAction, controlState, recording);
+        controlsActive = SideControls(sideCtrlRec, activeItem, &controlAction, controlState, controlSubState);
         
         DrawFPS(screenVec2.x / 2, 4);
 
@@ -126,9 +134,31 @@ int main()
         ControlState prevState = controlState;
         ControlAction lastAction = controlAction;
         UpdateControlState(&controlAction, &controlState);
-        recorder_state = fifo_recorder_state(fifo);
-        client_state = fifo_client_state(fifo);
-        recording = client_state == CLIENT_REC;
+                
+        switch(client_state)
+        {
+            case CLIENT_REC:
+                controlSubState = CONTROL_CAMERA_REC;
+                break;
+            case CLIENT_IDLE:
+            case CLIENT_STOP:
+                controlSubState = CONTROL_CAMERA_IDLE;
+                break;
+            case CLIENT_PLAY:
+                {
+                    if (lastAction == PLAYER_PLAY_ACT)
+                    {
+                        controlSubState = CONTROL_PLAYER_PLAY;
+                    }
+                    else if (lastAction == PLAYER_PAUSE_ACT)
+                    {
+                        controlSubState = CONTROL_PLAYER_PAUSE;
+                    }
+                } break;
+            default:
+                controlSubState = CONTROL_CAMERA_NONE;
+                break;
+        }
         
         // Do controls hidden tasks
         if (prevCtrlsActive != controlsActive)
@@ -164,6 +194,8 @@ int main()
                     fifo_player_set_filename(fifo, player_filename_path);
                     printf("player_filename_path = %s\n", player_filename_path);
                     if (player_filename_path) free(player_filename_path);
+                    controlSubState = CONTROL_PLAYER_PLAY;
+                    
                 } break;
 
                 default:
@@ -184,6 +216,7 @@ int main()
                 if (lastAction == CAMERA_REC && !(cliRec) && recIdle)
                 {
                     fifo_client_state_set(fifo, CLIENT_REC);
+                    lastSeconds = GetTime();
                 }
                 else if (lastAction == CAMERA_STOP && !(cliStop) && recRec)
                 {
@@ -195,10 +228,30 @@ int main()
             {
                 bool cliPlay = client_state == CLIENT_PLAY;
                 bool recIdle = recorder_state == IDLE;
+                bool playerPause = player_state == PLAYER_PAUSE;
+                bool playerPlay = player_state == PLAYER_PLAY;
+                bool playerRw = player_state == PLAYER_RW;
+                bool playerFf = player_state == PLAYER_FF;
                 
                 if (lastAction == PLAY && !(cliPlay) && recIdle)
                 {
                     fifo_client_state_set(fifo, CLIENT_PLAY);
+                }
+                if (lastAction == PLAYER_PAUSE_ACT && !(playerPause))
+                {
+                    fifo_player_state_set(fifo, PLAYER_PAUSE);
+                }
+                if (lastAction == PLAYER_PLAY_ACT && !(playerPlay))
+                {
+                    fifo_player_state_set(fifo, PLAYER_PLAY);
+                }
+                if (lastAction == PLAYER_FF_ACT && !(playerFf))
+                {
+                    fifo_player_state_set(fifo, PLAYER_FF);
+                }
+                if (lastAction == PLAYER_RW_ACT && !(playerRw))
+                {
+                    fifo_player_state_set(fifo, PLAYER_RW);
                 }
             }
             break;
@@ -214,9 +267,17 @@ int main()
                 if (lastAction == DELETE_YES)
                 {
                     printf("delete %s?\n", mp4s[activeItem]); 
+                    rc = remove(make_message("%s/%s", output_vid_dir, mp4s[activeItem]));
+                    if (rc != 0)
+                    {
+                        fprintf(stderr, "ERROR deleting %s, status code %d\n", mp4s[activeItem], rc);
+                        perror("ERROR");
+                    }
+                    else
+                    {
+                        mp4s = GetMp4s(&mp4Count, output_vid_dir);
+                    }
                 }
-
-                
             }
             break;
             case CONTROL_DELETE:

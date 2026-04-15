@@ -5,6 +5,8 @@
 #include "controls.h"
 #define FIFO_IMPLEMENTATION
 #include "fifo.h"
+#include "libavutil/timestamp.h"
+#include <time.h>
 #undef FIFO_IMPLEMENTATION
 
 #define IN_IMG_W 800
@@ -19,6 +21,8 @@ int main()
     char *output_vid_dir;
     char **mp4s = NULL;
     char *player_filename;
+    char frame_ts_str[32] = {0}; 
+    int64_t frame_ts;
     int mp4Count, activeItem, scrollIndex, iconRecordDur, rc;
     float iconRecordRadius;
     double lastSeconds;
@@ -35,6 +39,12 @@ int main()
     recorder_states recorder_state;
     client_states client_state;
     player_states player_state;
+    Font defaultFont = GetFontDefault();
+    time_t timer_secs;
+    struct tm *my_time;
+    time_t scshot;
+    struct tm *scshot_s;
+    char scshot_name[64];
 
     // Initialize vars
     fifo_init(&fifo, FRAME_BUF_SZ);
@@ -67,6 +77,8 @@ int main()
     InitWindow(800, 480, "raygui-control");
     GuiLoadStyle("../raygui/styles/cyber/cyber.rgs");
     GuiSetStyle(DEFAULT, TEXT_SIZE, 30);
+    int timeLenPlay = MeasureText("00:00:00.000", 30);
+    int timeLenLive = MeasureText("0000-00-00 00:00:00", 30);
     SetTargetFPS(60);
     screenVec2 = (Vector2){ .x = GetScreenWidth(), .y = GetScreenHeight() };
     iconRecordRadius  = 16;
@@ -78,6 +90,14 @@ int main()
 
     while (!WindowShouldClose())
     {
+        if (IsKeyPressed(KEY_S))
+        {
+            scshot = time(NULL);
+            scshot_s = gmtime(&scshot);
+            strftime(scshot_name, sizeof(scshot_name), "screenshots/scshot_%Y%m%d%H%M%S.png", scshot_s);
+            TakeScreenshot(scshot_name);
+            printf("Screenshot %s taken\n", scshot_name);
+        }
         recorder_state = fifo_recorder_state(fifo);
         client_state = fifo_client_state(fifo);
         player_state = fifo_player_state(fifo);
@@ -96,13 +116,27 @@ int main()
                 break;
             case CONTROL_PLAYER:
             case CONTROL_CAMERA:
-
                 DrawCameraControl(&cameraTex);
-                if (player_state != PLAYER_PAUSE && fifo_read(fifo, &frame_data))
+
+                if (controlState == CONTROL_CAMERA)
+                {
+                    timer_secs = time(NULL);
+                    my_time = localtime(&timer_secs);
+                    strftime(frame_ts_str, sizeof(frame_ts_str), "%Y-%m-%d %H:%M:%S", my_time);
+                    DrawText(frame_ts_str, screenVec2.x - timeLenLive, 0, 30, WHITE);
+                } else if (controlState == CONTROL_PLAYER)
+                {
+                    timer_secs = frame_ts / 1000 / 1000;
+                    my_time = gmtime(&timer_secs);
+                    strftime(frame_ts_str, sizeof(frame_ts_str), "%T", my_time); 
+                    DrawText(frame_ts_str, screenVec2.x - timeLenPlay, 0, 30, WHITE);
+                }
+
+                if (player_state != PLAYER_PAUSE && fifo_read(fifo, &frame_data, &frame_ts))
                 {
                     UpdateTexture(cameraTex, frame_data);
-
                 }
+
                 if (fifo_recorder_state(fifo) == REC)
                 {
                     if (bRecordingIcon)
@@ -181,10 +215,17 @@ int main()
             switch(controlState)
             {
                 case CONTROL_FILES:
+                {
                     mp4sLoaded = false;
                     mp4s = GetMp4s(&mp4Count, output_vid_dir);
                     mp4sLoaded = true;
-                    break;
+                    if (prevState == CONTROL_PLAYER)
+                    {
+                        fifo_client_state_set(fifo, CLIENT_IDLE);
+                        fifo_player_state_set(fifo, PLAYER_PLAY);
+                    }
+                        
+                } break;
 
                 case CONTROL_PLAYER:
                 {

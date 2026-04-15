@@ -91,7 +91,10 @@ void *produce_frames(void *fifo) {
     struct SwsContext *sws = sws_getContext(src_w, src_h, src_fmt, dst_w, dst_h, dst_fmt, SWS_FAST_BILINEAR, NULL, NULL, NULL);
     while (CLIENT_EXIT != fifo_client_state(fifo)) 
     {
-        if (fifo_recorder_state(fifo) == REC_PLAY && fifo_player_state(fifo) == PLAYER_PAUSE)
+        if (
+                fifo_recorder_state(fifo) == REC_PLAY && 
+                fifo_player_state(fifo) == PLAYER_PAUSE &&
+                fifo_client_state(fifo) == CLIENT_PLAY)
         {
             // player state paused. keep moving the start time up to keep it in sync with the duration of the video
             player_start_us = av_gettime() - dec_frame_us;
@@ -140,7 +143,7 @@ void *produce_frames(void *fifo) {
                             // produce frames at period matching wall clock
                             av_usleep(dt);
                         }
-                        if ((fifo_write((fifo_buffer_t *)fifo, dst_data[0])) == false)
+                        if ((fifo_write((fifo_buffer_t *)fifo, dst_data[0], dec_frame_us)) == false)
                         {
                             fifo_recorder_state_set(fifo, INV);
                             break;
@@ -176,9 +179,10 @@ void *produce_frames(void *fifo) {
                 else
                 {
                     const uint8_t *src_slices[4] = { pkt->data, pkt->data + luma_size, pkt->data + luma_size + chroma_size, NULL };
+                    dec_frame_us = av_rescale_q(pkt->pts, in_fmt_ctx->streams[0]->time_base, AV_TIME_BASE_Q);
                     int src_strides[4] = { src_w, uv_w, uv_w, 0 };
                     rc = sws_scale(sws, src_slices, src_strides, 0, src_h, dst_data, dst_linesize);
-                    if ((fifo_write((fifo_buffer_t *)fifo, dst_data[0])) == false) {
+                    if ((fifo_write((fifo_buffer_t *)fifo, dst_data[0], dec_frame_us)) == false) {
                         fifo_recorder_state_set(fifo, INV);
                         break;
                     }
@@ -317,6 +321,6 @@ void *produce_frames(void *fifo) {
     avformat_close_input(&player_in_fmt_ctx);
     avdevice_free_list_devices(&dev_list);
     *ret = 0;
-    printf("frame_producer 219\n");
+    printf("frame_producer 323\n");
     return ret;
 }

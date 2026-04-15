@@ -21,6 +21,7 @@ typedef enum {
 typedef struct {
     uint8_t *buffer;
     uint8_t *buffer_ptrs[BUFFER_SIZE];
+    int64_t timestamps[BUFFER_SIZE];
     size_t sz_one;
     int head; // Write index
     int tail; // Read index
@@ -37,8 +38,8 @@ typedef struct {
 void fifo_init(fifo_buffer_t **f, size_t sz_one_buff);
 bool fifo_is_empty(fifo_buffer_t *f);
 bool fifo_is_full(fifo_buffer_t *f);
-bool fifo_write(fifo_buffer_t *f, uint8_t *data);
-bool fifo_read(fifo_buffer_t *f, uint8_t **data);
+bool fifo_write(fifo_buffer_t *f, uint8_t *data, int64_t frame_ts);
+bool fifo_read(fifo_buffer_t *f, uint8_t **data, int64_t *frame_ts);
 recorder_states fifo_recorder_state(fifo_buffer_t *f);
 client_states fifo_client_state(fifo_buffer_t *f);
 player_states fifo_player_state(fifo_buffer_t *f);
@@ -110,7 +111,7 @@ bool fifo_is_full(fifo_buffer_t *f) {
  * Write data to the buffer.
  * Returns false if the buffer is full, true on success.
  */
-bool fifo_write(fifo_buffer_t *f, uint8_t *data) {
+bool fifo_write(fifo_buffer_t *f, uint8_t *data, int64_t ts) {
     bool rc = true;
     pthread_mutex_lock(&f->lock); 
     if (fifo_is_full(f)) {
@@ -120,6 +121,7 @@ bool fifo_write(fifo_buffer_t *f, uint8_t *data) {
         // goto fifo_write_end; // Handle error: buffer is full
     }
     f->buffer_ptrs[f->head] = memcpy((uint8_t *)f->buffer_ptrs[f->head], data, f->sz_one);
+    f->timestamps[f->head] = ts;
     f->head = (f->head + 1) % BUFFER_SIZE; // Wrap around
     sig_event_trigger(f->signal);
 // fifo_write_end:
@@ -131,7 +133,7 @@ bool fifo_write(fifo_buffer_t *f, uint8_t *data) {
  * Read data from the buffer.
  * Returns false if the buffer is empty, true on success.
  */
-bool fifo_read(fifo_buffer_t *f, uint8_t **data) 
+bool fifo_read(fifo_buffer_t *f, uint8_t **data, int64_t *frame_ts) 
 {
     bool rc = true, timed_out = false;
     //sig_event_wait(f->signal);
@@ -144,6 +146,7 @@ bool fifo_read(fifo_buffer_t *f, uint8_t **data)
         goto fifo_read_end;
     }
     *data = f->buffer_ptrs[f->tail];
+    *frame_ts = f->timestamps[f->tail];
     f->tail = (f->tail + 1) % BUFFER_SIZE; // Wrap around
 fifo_read_end:
     pthread_mutex_unlock(&f->lock);
